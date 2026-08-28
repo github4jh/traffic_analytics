@@ -1,0 +1,470 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Freeway Traffic Analytics — CAM 19800</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg: #12161b;
+    --panel: #1a2028;
+    --panel-alt: #212a33;
+    --line: #2a333e;
+    --green: #0e8f52;
+    --green-bright: #2fd17e;
+    --amber: #ffb020;
+    --danger: #ff6b6b;
+    --road: #e7e4da;
+    --text: #e9ecef;
+    --text-dim: #8b94a0;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--sans);
+    min-height:100vh;
+  }
+  a{color:inherit;}
+
+  /* ---------- gantry header ---------- */
+  header.gantry{
+    background:linear-gradient(180deg, var(--green) 0%, #0b6b3d 100%);
+    border-bottom:4px solid #063f22;
+    padding:14px 24px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  .gantry-title{
+    font-family:var(--mono);
+    font-weight:700;
+    letter-spacing:0.04em;
+    font-size:15px;
+    color:#f3fff7;
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .gantry-title .route{
+    background:#ffffff;
+    color:#0b6b3d;
+    font-weight:700;
+    padding:2px 8px;
+    border-radius:3px;
+    font-size:13px;
+  }
+  .gantry-sub{
+    font-family:var(--mono);
+    font-size:12px;
+    color:#d9fbe8;
+    opacity:0.85;
+  }
+  .status-pill{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    font-family:var(--mono);
+    font-size:12px;
+    background:rgba(0,0,0,0.25);
+    padding:5px 10px;
+    border-radius:20px;
+  }
+  .dot{
+    width:8px;height:8px;border-radius:50%;
+    background:var(--text-dim);
+  }
+  .dot.live{
+    background:var(--danger);
+    box-shadow:0 0 8px var(--danger);
+    animation:pulse 1.4s infinite;
+  }
+  @keyframes pulse{
+    0%,100%{opacity:1;}
+    50%{opacity:0.35;}
+  }
+
+  main{
+    max-width:1280px;
+    margin:0 auto;
+    padding:20px 24px 60px;
+    display:grid;
+    grid-template-columns: 1.5fr 1fr;
+    gap:20px;
+  }
+  @media (max-width: 920px){
+    main{grid-template-columns:1fr;}
+  }
+
+  section.panel{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:8px;
+    overflow:hidden;
+  }
+  .panel-head{
+    padding:12px 16px;
+    border-bottom:1px solid var(--line);
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+  }
+  .panel-head h2{
+    margin:0;
+    font-size:12px;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    color:var(--text-dim);
+    font-weight:600;
+  }
+  .panel-body{padding:16px;}
+
+  /* ---------- video monitor ---------- */
+  .monitor{
+    position:relative;
+    background:#000;
+    aspect-ratio:16/9;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .monitor img{
+    width:100%;
+    height:100%;
+    object-fit:contain;
+    display:block;
+  }
+  .monitor-badge{
+    position:absolute;
+    top:10px;
+    left:10px;
+    font-family:var(--mono);
+    font-size:11px;
+    background:rgba(0,0,0,0.55);
+    padding:4px 8px;
+    border-radius:4px;
+    display:flex;
+    align-items:center;
+    gap:6px;
+    letter-spacing:0.05em;
+  }
+  .monitor-empty{
+    color:var(--text-dim);
+    font-family:var(--mono);
+    font-size:13px;
+    text-align:center;
+    padding:20px;
+  }
+
+  /* ---------- stat cards ---------- */
+  .stat-grid{
+    display:grid;
+    grid-template-columns:repeat(2,1fr);
+    gap:12px;
+  }
+  .stat-card{
+    background:var(--panel-alt);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:12px 14px;
+  }
+  .stat-card .label{
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:var(--text-dim);
+    margin-bottom:6px;
+  }
+  .stat-card .value{
+    font-family:var(--mono);
+    font-size:26px;
+    font-weight:700;
+    color:var(--green-bright);
+  }
+  .stat-card .value.amber{color:var(--amber);}
+  .stat-card .value small{
+    font-size:13px;
+    color:var(--text-dim);
+    font-weight:500;
+  }
+
+  /* ---------- lane schematic ---------- */
+  .lanes{
+    display:flex;
+    gap:4px;
+    padding:16px 16px 20px;
+  }
+  .lane{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:8px;
+    position:relative;
+    border-left:2px dashed var(--road);
+    opacity:0.9;
+    padding:0 6px;
+  }
+  .lane:first-child{border-left:none;}
+  .lane .bar-track{
+    width:100%;
+    height:90px;
+    background:#0e1318;
+    border-radius:3px;
+    display:flex;
+    align-items:flex-end;
+    overflow:hidden;
+    border:1px solid var(--line);
+  }
+  .lane .bar{
+    width:100%;
+    background:linear-gradient(180deg, var(--green-bright), var(--green));
+    transition:height 0.4s ease;
+  }
+  .lane .lane-name{
+    font-family:var(--mono);
+    font-size:11px;
+    color:var(--text-dim);
+  }
+  .lane .lane-total{
+    font-family:var(--mono);
+    font-size:13px;
+    font-weight:700;
+  }
+
+  /* ---------- direction / type rows ---------- */
+  .rows{display:flex; flex-direction:column; gap:8px;}
+  .row{
+    display:flex;
+    justify-content:space-between;
+    font-family:var(--mono);
+    font-size:13px;
+    padding:6px 0;
+    border-bottom:1px solid var(--line);
+  }
+  .row:last-child{border-bottom:none;}
+  .row .k{color:var(--text-dim);}
+  .row .v{font-weight:700;}
+
+  canvas{max-height:180px;}
+
+  footer{
+    text-align:center;
+    padding:20px;
+    color:var(--text-dim);
+    font-family:var(--mono);
+    font-size:11px;
+  }
+</style>
+</head>
+<body>
+
+<header class="gantry">
+  <div class="gantry-title">
+    <span class="route">FWY</span>
+    Taiwan Freeway CCTV — CAM 19800
+  </div>
+  <div class="gantry-sub" id="sourceLabel">source: —</div>
+  <div class="status-pill">
+    <span class="dot live" id="statusDot"></span>
+    <span id="statusText">connecting…</span>
+  </div>
+</header>
+
+<main>
+  <div style="display:flex; flex-direction:column; gap:20px;">
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Live Feed</h2>
+        <span class="gantry-sub" id="fpsLabel" style="color:var(--text-dim); font-size:11px;">— fps</span>
+      </div>
+      <div class="monitor">
+        <img id="videoFeed" src="/api/video" alt="Live annotated traffic feed"
+             onerror="this.style.display='none'; document.getElementById('monitorEmpty').style.display='block';" />
+        <div class="monitor-badge"><span class="dot live"></span> LIVE</div>
+        <div class="monitor-empty" id="monitorEmpty" style="display:none;">
+          Video feed unavailable — engine may still be starting up.
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h2>Lane Flow — LINE_Y crossing counts</h2></div>
+      <div class="lanes" id="laneSchematic"></div>
+    </section>
+  </div>
+
+  <div style="display:flex; flex-direction:column; gap:20px;">
+    <section class="panel">
+      <div class="panel-head"><h2>Overview</h2></div>
+      <div class="panel-body">
+        <div class="stat-grid">
+          <div class="stat-card">
+            <div class="label">Vehicles Passed</div>
+            <div class="value" id="statPassed">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">Flow Rate</div>
+            <div class="value amber" id="statFlow">0<small> /hr</small></div>
+          </div>
+          <div class="stat-card">
+            <div class="label">In Frame Now</div>
+            <div class="value" id="statNow">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">Direction Up / Down</div>
+            <div class="value" id="statDir" style="font-size:20px;">0 / 0</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h2>Vehicle Types</h2></div>
+      <div class="panel-body rows" id="vehicleTypeRows"></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h2>Flow Rate Trend</h2></div>
+      <div class="panel-body">
+        <canvas id="trendChart"></canvas>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer>Portfolio project — YOLO + BoT-SORT freeway traffic analytics · polling /api/stats every 1s</footer>
+
+<script>
+const laneSchematicEl = document.getElementById('laneSchematic');
+const vehicleTypeRowsEl = document.getElementById('vehicleTypeRows');
+
+let laneMax = 1;
+
+function renderLanes(laneCounts) {
+  const entries = Object.entries(laneCounts).filter(([name]) => name !== 'unassigned');
+  laneMax = Math.max(1, ...entries.map(([, c]) => c.total));
+
+  laneSchematicEl.innerHTML = entries.map(([name, c]) => {
+    const pct = Math.round((c.total / laneMax) * 100);
+    return `
+      <div class="lane">
+        <div class="bar-track"><div class="bar" style="height:${pct}%"></div></div>
+        <div class="lane-total">${c.total}</div>
+        <div class="lane-name">${name.replace('lane_', 'L')}</div>
+      </div>`;
+  }).join('');
+
+  const unassigned = laneCounts.unassigned;
+  if (unassigned && unassigned.total > 0) {
+    laneSchematicEl.innerHTML += `
+      <div class="lane" style="border-left:2px dashed var(--danger);">
+        <div class="bar-track"><div class="bar" style="height:${Math.min(100, (unassigned.total/laneMax)*100)}%; background:var(--danger);"></div></div>
+        <div class="lane-total" style="color:var(--danger);">${unassigned.total}</div>
+        <div class="lane-name" style="color:var(--danger);">?</div>
+      </div>`;
+  }
+}
+
+function renderVehicleTypes(counts) {
+  const entries = Object.entries(counts);
+  if (entries.length === 0) {
+    vehicleTypeRowsEl.innerHTML = `<div class="row"><span class="k">no vehicles counted yet</span></div>`;
+    return;
+  }
+  vehicleTypeRowsEl.innerHTML = entries.map(([type, count]) => `
+    <div class="row"><span class="k">${type}</span><span class="v">${count}</span></div>
+  `).join('');
+}
+
+const ctx = document.getElementById('trendChart');
+const trendChart = new Chart(ctx, {
+  type: 'line',
+  data: {
+    labels: [],
+    datasets: [{
+      label: 'vehicles / hour',
+      data: [],
+      borderColor: '#2fd17e',
+      backgroundColor: 'rgba(47,209,126,0.12)',
+      fill: true,
+      tension: 0.3,
+      pointRadius: 0,
+      borderWidth: 2,
+    }]
+  },
+  options: {
+    responsive: true,
+    animation: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { display: false },
+      y: {
+        grid: { color: '#2a333e' },
+        ticks: { color: '#8b94a0', font: { family: 'JetBrains Mono', size: 10 } }
+      }
+    }
+  }
+});
+
+async function pollStats() {
+  try {
+    const res = await fetch('/api/stats');
+    const data = await res.json();
+
+    document.getElementById('sourceLabel').textContent = 'source: ' + (data.source || '—');
+
+    const dot = document.getElementById('statusDot');
+    const text = document.getElementById('statusText');
+    if (data.error) {
+      dot.classList.remove('live');
+      text.textContent = 'error: ' + data.error;
+    } else if (data.running) {
+      dot.classList.add('live');
+      text.textContent = 'processing';
+    } else {
+      dot.classList.remove('live');
+      text.textContent = 'stopped';
+    }
+
+    document.getElementById('fpsLabel').textContent = (data.processing_fps ?? '—') + ' fps';
+    document.getElementById('statPassed').textContent = data.vehicles_passed ?? 0;
+    document.getElementById('statFlow').innerHTML = (data.vehicles_per_hour ?? 0) + '<small> /hr</small>';
+    document.getElementById('statNow').textContent = data.current_vehicle_count ?? 0;
+
+    const dir = data.direction_counts || { up: 0, down: 0 };
+    document.getElementById('statDir').textContent = `${dir.up} / ${dir.down}`;
+
+    if (data.lane_counts) renderLanes(data.lane_counts);
+    if (data.total_vehicle_counts) renderVehicleTypes(data.total_vehicle_counts);
+  } catch (e) {
+    document.getElementById('statusText').textContent = 'disconnected';
+    document.getElementById('statusDot').classList.remove('live');
+  }
+}
+
+async function pollHistory() {
+  try {
+    const res = await fetch('/api/history');
+    const data = await res.json();
+    trendChart.data.labels = data.map(d => '');
+    trendChart.data.datasets[0].data = data.map(d => d.vehicles_per_hour);
+    trendChart.update();
+  } catch (e) { /* ignore */ }
+}
+
+pollStats();
+pollHistory();
+setInterval(pollStats, 1000);
+setInterval(pollHistory, 5000);
+</script>
+</body>
+</html>

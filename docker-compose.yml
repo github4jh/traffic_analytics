@@ -1,0 +1,18 @@
+services:
+  traffic-analytics:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - USE_LIVE_SOURCE=true
+    volumes:
+      # Optional: keep processed clips outside the container if you
+      # ever write finished MP4s to disk instead of just streaming.
+      - ./output:/app/output
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3

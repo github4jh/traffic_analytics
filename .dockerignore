@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.git
+.gitignore
+.venv
+venv/
+output/*.mp4
+output/*.png
+videos/*.mp4
+*.md
+diagnose.py
+calibrate_lanes.py
