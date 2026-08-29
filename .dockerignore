@@ -6,7 +6,7 @@ __pycache__/
 venv/
 output/*.mp4
 output/*.png
-videos/*.mp4
 *.md
 diagnose.py
 calibrate_lanes.py
+
